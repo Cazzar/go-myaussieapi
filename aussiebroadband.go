@@ -12,7 +12,7 @@ import (
 //Customer object for the API
 type Customer struct {
 	http     *httpclient.HttpClient
-	username string
+	Username string
 	password string
 }
 
@@ -114,14 +114,14 @@ func NewCustomer(username string, password string) (*Customer, error) {
 
 	customer := &Customer{
 		http:     httpclient,
-		username: username,
+		Username: username,
 		password: password,
 	}
 
 	url := "https://myaussie-auth.aussiebroadband.com.au/login"
 
 	resp, err := customer.http.Post(url, map[string]string{
-		"username": customer.username,
+		"username": customer.Username,
 		"password": customer.password,
 	})
 
