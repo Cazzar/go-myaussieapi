@@ -24,8 +24,14 @@ type NBNService struct {
 	Plan        string `json:"plan"`
 	Description string `json:"description"`
 	NbnDetails  struct {
-		Product string `json:"product"`
-		PoiName string `json:"poiName"`
+		Product        string `json:"product"`
+		PoiName        string `json:"poiName"`
+		CVCGraph       string `json:"cvcGraph"`
+		SpeedPotential struct {
+			DownloadMbps int    `json:"downloadMbps"`
+			UploadMbps   int    `json:"uploadMbps"`
+			LastTested   string `json:"lastTested"`
+		} `json:"speedPotential"`
 	} `json:"nbnDetails"`
 	NextBillDate     time.Time `json:"nextBillDate"`
 	OpenDate         string    `json:"openDate"`
@@ -48,6 +54,8 @@ type NBNService struct {
 		ContractVersion string `json:"contract_version"`
 	} `json:"contract"`
 }
+
+//https://discordapp.com/channels/417239092267319297/559903882310844423/560045101967998977
 
 //CustomerDetails - https://myaussie-api.aussiebroadband.com.au/customer
 type CustomerDetails struct {
@@ -105,6 +113,44 @@ type UsageInformation struct {
 	DaysTotal     int    `json:"daysTotal"`
 	DaysRemaining int    `json:"daysRemaining"`
 	LastUpdated   string `json:"lastUpdated"`
+}
+
+//OutagesNBN - https://myaussie-api.aussiebroadband.com.au/nbn/<sid>/outages
+type OutagesNBN struct {
+	CurrentNBNOutages []struct {
+		Created   string `json:"created"`
+		Status    string `json:"status"`
+		UpdatedAt string `json:"updated_at"`
+	} `json:"currentNbnOutages"`
+	ScheduledNBNOutages []struct {
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+		Duration  string `json:"duration"`
+	}
+	//`json:"networkEvents"`
+	//`json:"aussieOutages"`
+}
+
+//Test - https://myaussie-api.aussiebroadband.com.au/tests/<sid>
+type Test struct {
+	ID          int    `json:"id"`
+	Type        string `json:"type"`
+	Status      string `json:"status"`
+	Result      string `json:"result"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+	CompletedAt string `json:"completed_at"`
+}
+
+//Payment - https://myaussie-api.aussiebroadband.com.au/billing/transactions
+type Payment struct {
+	ID                  int    `json:"id"`
+	Type                string `json:"type"`
+	Time                string `json:"time"`
+	Description         string `json:"description"`
+	AmountCents         int    `json:"amountCents"`
+	BalanceCents        int    `json:"balanceCents"`
+	RunningBalanceCents int    `json:"runningBalanceCents"`
 }
 
 //NewCustomer - Create a new instance of the customer struct, therefore allowing usage of the API
@@ -180,4 +226,79 @@ func (cust *Customer) GetUsage(serviceID int) (*UsageInformation, error) {
 	}
 
 	return &data, nil
+}
+
+//GetTransactions Get all the payments
+func (cust *Customer) GetTransactions() (*[]Payment, error) {
+	resp, err := cust.http.Get("https://myaussie-api.aussiebroadband.com.au/billing/transactions")
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(resp.Status)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var txns []Payment
+	err = json.Unmarshal(body, &txns)
+	if err != nil {
+		return nil, err
+	}
+
+	return &txns, nil
+}
+
+//GetOutagesNBN Get outages for a NBN service
+func (cust *Customer) GetOutagesNBN(serviceID int) (*OutagesNBN, error) {
+	resp, err := cust.http.Get(fmt.Sprintf("https://myaussie-api.aussiebroadband.com.au/nbn/%d/outages", serviceID))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(resp.Status)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var outages OutagesNBN
+	err = json.Unmarshal(body, &outages)
+	if err != nil {
+		return nil, err
+	}
+
+	return &outages, nil
+}
+
+//GetTests - Get the tests associated with the service id
+func (cust *Customer) GetTests(serviceID int) (*[]Test, error) {
+	resp, err := cust.http.Get(fmt.Sprintf("https://myaussie-api.aussiebroadband.com.au/tests/%d", serviceID))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(resp.Status)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var tests []Test
+	err = json.Unmarshal(body, &tests)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tests, nil
 }
