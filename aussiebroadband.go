@@ -27,7 +27,7 @@ type NBNService struct {
 		Product        string `json:"product"`
 		PoiName        string `json:"poiName"`
 		CVCGraph       string `json:"cvcGraph"`
-		SpeedPotential struct {
+		SpeedPotential *struct {
 			DownloadMbps int    `json:"downloadMbps"`
 			UploadMbps   int    `json:"uploadMbps"`
 			LastTested   string `json:"lastTested"`
@@ -155,7 +155,7 @@ type Payment struct {
 
 //NewCustomer - Create a new instance of the customer struct, therefore allowing usage of the API
 func NewCustomer(username string, password string) (*Customer, error) {
-	const VERSION = "0.0.1"
+	const VERSION = "0.0.2"
 	httpclient := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client "+VERSION)
 
 	customer := &Customer{
