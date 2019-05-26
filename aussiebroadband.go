@@ -185,6 +185,9 @@ func NewCustomer(username string, password string) (*Customer, error) {
 //GetCustomerDetails - Pull the customer details from the MyAussie customer endpoint.
 func (cust *Customer) GetCustomerDetails() (*CustomerDetails, error) {
 	resp, err := cust.http.Get("https://myaussie-api.aussiebroadband.com.au/customer")
+	if err != nil {
+		return nil, err
+	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
