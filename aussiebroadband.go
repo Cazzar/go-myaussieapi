@@ -231,9 +231,9 @@ func FromToken(username string, password string, token string, refreshToken stri
 }
 
 //RefreshIfNeeded - Check if the Cookies close to expiring, if so, use the RefreshToken to reload
-func (cust *Customer) RefreshIfNeeded() error {
+func (cust *Customer) RefreshIfNeeded() (bool, error) {
     if (cust.RefreshToken == "") {
-        return errors.New("Missing Refresh Token")
+        return false, errors.New("Missing Refresh Token")
     }
 
     if (cust.ExpiresAt.Before(time.Now().Add(time.Hour * time.Duration(24)))) {
@@ -242,31 +242,32 @@ func (cust *Customer) RefreshIfNeeded() error {
         })
 
         if err != nil {
-            return err
+            return false, err
         }
         body, err := ioutil.ReadAll(resp.Body)
         if err != nil {
-            return err
+            return false, err
         }
     
         defer resp.Body.Close()
         if resp.StatusCode != 200 {
-            return fmt.Errorf(resp.Status)
+            return false, fmt.Errorf(resp.Status)
         }
     
 
         data := &AuthResponse{}
         err = json.Unmarshal(body, data)
         if err != nil {
-            return err
+            return false, err
         }
     
         cust.RefreshToken = data.RefreshToken;
         cust.ExpiresAt = time.Now().Add(time.Second * time.Duration(data.ExpiresIn))
         cust.Cookie = httpclient.CookieValue("https://my.aussiebroadband.com.au", "myaussie_cookie")
+        return true, nil
     }
 
-    return nil
+    return false, nil
 }
 
 //GetCustomerDetails - Pull the customer details from the MyAussie customer endpoint.
