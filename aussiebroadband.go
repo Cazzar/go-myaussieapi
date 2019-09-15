@@ -5,6 +5,7 @@ import (
     "fmt"
     "io/ioutil"
     "time"
+    "errors"
 
     httpclient "github.com/ddliu/go-httpclient"
 )
@@ -14,8 +15,9 @@ type Customer struct {
     http     	 *httpclient.HttpClient
     Username     string
     password     string
-    refreshToken string
-    expiresAt    time.Time
+    RefreshToken string
+    ExpiresAt    time.Time
+    Cookie       string
 }
 
 //NBNService part of the Customer details.
@@ -155,10 +157,16 @@ type Payment struct {
     RunningBalanceCents int    `json:"runningBalanceCents"`
 }
 
+//AuthResponse https://myaussie-auth.aussiebroadband.com.au/login
+type AuthResponse struct {
+    RefreshToken string `json:"refreshToken"`
+    ExpiresIn    int    `json:"expiresIn"`
+}
+const apiVersion = "0.1.0"
+
 //NewCustomer - Create a new instance of the customer struct, therefore allowing usage of the API
 func NewCustomer(username string, password string) (*Customer, error) {
-    const VERSION = "0.0.2"
-    httpclient := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client "+VERSION)
+    httpclient := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client " + apiVersion)
 
     customer := &Customer{
         http:     httpclient,
@@ -176,12 +184,89 @@ func NewCustomer(username string, password string) (*Customer, error) {
     if err != nil {
         return nil, err
     }
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+
     defer resp.Body.Close()
     if resp.StatusCode != 200 {
         return nil, fmt.Errorf(resp.Status)
     }
 
+    data := &AuthResponse{}
+    err = json.Unmarshal(body, data)
+    if err != nil {
+        return nil, err
+    }
+
+    customer.RefreshToken = data.RefreshToken;
+    customer.ExpiresAt = time.Now().Add(time.Second * time.Duration(data.ExpiresIn))
+    customer.Cookie = httpclient.CookieValue("https://my.aussiebroadband.com.au", "myaussie_cookie")
+
     return customer, nil
+}
+
+//FromToken - Create a customer object from a token/refrsh token
+func FromToken(username string, password string, token string, refreshToken string, expires time.Time) *Customer {
+    httpclient := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client " + apiVersion).WithCookie(&http.Cookie{
+        Name: "myaussie_cookie",
+        Value: token,
+        Domain: "aussiebroadband.com.au",
+        HttpOnly: true,
+        Secure: true, 
+        Expires: expires,
+    })
+
+    customer := &Customer{
+        http:     httpclient,
+        Username: username,
+        password: password,
+        RefreshToken: refreshToken,
+        Cookie: token,
+        ExpiresAt: expires,
+    }
+
+    return customer
+}
+
+//RefreshIfNeeded - Check if the Cookies close to expiring, if so, use the RefreshToken to reload
+func (cust *Customer) RefreshIfNeeded() error {
+    if (cust.RefreshToken == "") {
+        return errors.New("Missing Refresh Token")
+    }
+
+    if (cust.ExpiresAt.Before(time.Now().Add(time.Hour * time.Duration(24)))) {
+        resp, err := cust.http.PutJson("https://myaussie-auth.aussiebroadband.com.au/login", map[string]string{
+            "refreshToken": cust.RefreshToken,
+        })
+
+        if err != nil {
+            return err
+        }
+        body, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+            return err
+        }
+    
+        defer resp.Body.Close()
+        if resp.StatusCode != 200 {
+            return fmt.Errorf(resp.Status)
+        }
+    
+
+        data := &AuthResponse{}
+        err = json.Unmarshal(body, data)
+        if err != nil {
+            return err
+        }
+    
+        cust.RefreshToken = data.RefreshToken;
+        cust.ExpiresAt = time.Now().Add(time.Second * time.Duration(data.ExpiresIn))
+        cust.Cookie = httpclient.CookieValue("https://my.aussiebroadband.com.au", "myaussie_cookie")
+    }
+
+    return nil
 }
 
 //GetCustomerDetails - Pull the customer details from the MyAussie customer endpoint.
