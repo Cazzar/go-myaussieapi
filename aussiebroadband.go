@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"time"
+	"golang.org/x/net/publicsuffix"
 
 	httpclient "github.com/ddliu/go-httpclient"
 )
@@ -210,18 +213,26 @@ func NewCustomer(username string, password string) (*Customer, error) {
 }
 
 //FromToken - Create a customer object from a token/refrsh token
-func FromToken(username string, password string, token string, refreshToken string, expires time.Time) *Customer {
-	httpclient := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client "+apiVersion).WithCookie(&http.Cookie{
+func FromToken(username string, password string, token string, refreshToken string, expires time.Time) (*Customer, error) {
+	httpcl := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client "+apiVersion)
+
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return nil, err
+	}
+	url, err := url.ParseRequestURI("https://my.aussiebroadband.com.au")
+	jar.SetCookies(url, []*http.Cookie{&http.Cookie{
 		Name:     "myaussie_cookie",
 		Value:    token,
-		Domain:   "aussiebroadband.com.au",
+		Domain:   ".aussiebroadband.com.au",
 		HttpOnly: true,
 		Secure:   true,
 		Expires:  expires,
-	})
+	}})
+	httpcl.WithOption(httpclient.OPT_COOKIEJAR, jar)
 
 	customer := &Customer{
-		http:         httpclient,
+		http:         httpcl,
 		Username:     username,
 		password:     password,
 		RefreshToken: refreshToken,
@@ -229,7 +240,7 @@ func FromToken(username string, password string, token string, refreshToken stri
 		ExpiresAt:    expires,
 	}
 
-	return customer
+	return customer, nil
 }
 
 //RefreshIfNeeded - Check if the Cookies close to expiring, if so, use the RefreshToken to reload
@@ -264,7 +275,7 @@ func (cust *Customer) RefreshIfNeeded() (bool, error) {
 
 		cust.RefreshToken = data.RefreshToken
 		cust.ExpiresAt = time.Now().Add(time.Second * time.Duration(data.ExpiresIn))
-		cust.Cookie = httpclient.CookieValue("https://my.aussiebroadband.com.au", "myaussie_cookie")
+		cust.Cookie = cust.http.CookieValue("https://my.aussiebroadband.com.au", "myaussie_cookie")
 		return true, nil
 	}
 
