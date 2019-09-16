@@ -171,7 +171,9 @@ const apiVersion = "0.1.0"
 
 //NewCustomer - Create a new instance of the customer struct, therefore allowing usage of the API
 func NewCustomer(username string, password string) (*Customer, error) {
-	httpclient := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client "+apiVersion)
+	httpclient := httpclient.NewHttpClient().Defaults(httpclient.Map{ 
+		httpclient.OPT_USERAGENT: "Cazzar's AussieBB API Client " + apiVersion,
+	})
 
 	customer := &Customer{
 		http:     httpclient,
@@ -214,8 +216,7 @@ func NewCustomer(username string, password string) (*Customer, error) {
 
 //FromToken - Create a customer object from a token/refrsh token
 func FromToken(username string, password string, token string, refreshToken string, expires time.Time) (*Customer, error) {
-	httpcl := httpclient.NewHttpClient().WithOption(httpclient.OPT_USERAGENT, "Cazzar's AussieBB API Client "+apiVersion)
-
+	fmt.Println(expires.Format("2006-01-02T15:04:05"))
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return nil, err
@@ -227,9 +228,13 @@ func FromToken(username string, password string, token string, refreshToken stri
 		Domain:   ".aussiebroadband.com.au",
 		HttpOnly: true,
 		Secure:   true,
-		Expires:  expires,
+		//Expires:  expires,
 	}})
-	httpcl.WithOption(httpclient.OPT_COOKIEJAR, jar)
+
+	httpcl := httpclient.NewHttpClient().Defaults(httpclient.Map {
+		httpclient.OPT_USERAGENT: "Cazzar's AussieBB API Client " + apiVersion,
+		httpclient.OPT_COOKIEJAR: jar,
+	})
 
 	customer := &Customer{
 		http:         httpcl,
